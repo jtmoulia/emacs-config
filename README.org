@@ -77,6 +77,8 @@ bars.
   ;; and no tool bar
   (when (fboundp 'tool-bar-mode)
     (tool-bar-mode -1))
+
+  (setq-default indent-tabs-mode nil)
 #+end_src
 
 ** Backup Files
@@ -597,24 +599,26 @@ out of hand.
   (use-package popper
     :init
     (setq popper-reference-buffers
-  	'("\\*Messages\\*"
-  	  "\\*eshell\\*"
-  	  "\\*Deft\\*"
-  	  "Output\\*$"
-  	  "\\*Async Shell Command\\*"
-  	  "\\*chatgpt\\*"
+          '("\\*Messages\\*"
+            "\\*eshell\\*"
+            "\\*Deft\\*"
+            "Output\\*$"
+            "\\*Async Shell Command\\*"
+            "\\*chatgpt\\*"
             "\\*Warnings\\*"
             "\\*Backtrace\\*"
             "\\*Org Select\\*"
-  	  "\\*ielm\\*"
-  	  help-mode
-  	  compilation-mode))
+            "\\*ielm\\*"
+            calendar-mode
+            help-mode
+            compilation-mode))
     (popper-mode +1)
     (popper-echo-mode +1)
     :config
     (general-nmap
       :prefix "SPC"
       "~" 'popper-toggle)
+
     (general-nmap
       :prefix "SPC c"
       "c" 'popper-toggle
