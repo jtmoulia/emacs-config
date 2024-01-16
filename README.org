@@ -78,7 +78,11 @@ bars.
   (when (fboundp 'tool-bar-mode)
     (tool-bar-mode -1))
 
+  ;; don't use tab characters
   (setq-default indent-tabs-mode nil)
+
+  ;; delete trailing whitespace on save
+  (add-hook 'write-file-hooks 'delete-trailing-whitespace)
 #+end_src
 
 ** Backup Files
@@ -88,7 +92,7 @@ Backup and temporary files are stored in
 is defined, else they're stored in =~/.cache/emacs/backups=.
 
 #+begin_src emacs-lisp
-  (let ((backup-dir (expand-file-name "emacs/backups" 
+  (let ((backup-dir (expand-file-name "emacs/backups"
   				    (or (getenv "XDG_CACHE_HOME") "~/.cache"))))
     (setq backup-directory-alist `(("." . ,backup-dir)))
     (setq auto-save-file-name-transforms `((".*" ,backup-dir t))))
@@ -133,11 +137,13 @@ Requires running the command =nerd-icons-install-fonts=.
 
 *** Rainbow delimiters
 
-=rainbow-del
-#+begin_src emacs-lisp :tangle yes
+=rainbow-delimiters= make delimiters fabulous.
+
+#+begin_src emacs-lisp
   (use-package rainbow-delimiters
     :hook ((prog-mode org-mode) . rainbow-delimiters-mode))
 #+end_src
+
 ** Undo: undo-fu
 
 Linear undo / redo is implemented via =undo-fu=. I'm avoiding
@@ -357,7 +363,7 @@ Define keybindings for org mode.
       :prefix ","
       "A" #'org-archive-subtree
       "C" #'org-ctrl-c-ctrl-c)
-    
+
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", c"
@@ -462,7 +468,7 @@ Define keybindings for org mode.
     (setq my//org-capture-regard-todo-file "agenda/ht.org")
     (setq my//org-capture-bookmark-file (f-join org-directory "bookmarks.org"))
     (setq my//org-log-file "~/src/hoglog/content-org/journal.org")
-    
+
     (setq
      org-capture-templates
      `(("t" "capture todo item")
@@ -668,7 +674,7 @@ location, or when the buffer scroll jumps.
 
 #+begin_src emacs-lisp
   (use-package beacon
-    :custom 
+    :custom
     (beacon-color "#ff79c6")
     (beacon-blink-duration 0.3)
     (beacon-size 20)
@@ -1072,7 +1078,7 @@ WARNING: Depends on =1password-cli= being installed.
 #+begin_src emacs-lisp
   (use-package chatgpt-shell
     :commands (chatgpt-shell)
-    :init 
+    :init
     (my-launchers "c" 'chatgpt-shell)
     :config
     ;; set up chatgpt-shell to work with with org babel code blocks
@@ -1124,7 +1130,7 @@ WARNING: Depends on =1password-cli= being installed.
 
 =elfeed-org= an org file driving the feed definitions.
 
-#+begin_src emacs-lisp :tangle yes
+#+begin_src emacs-lisp
   (use-package elfeed-org
     :after (elfeed org)
     :custom
