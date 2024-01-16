@@ -355,7 +355,8 @@ Define keybindings for org mode.
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ","
-      "A" #'org-archive-subtree)
+      "A" #'org-archive-subtree
+      "C" #'org-ctrl-c-ctrl-c)
     
     (general-nmap
       :keymaps 'org-mode-map
