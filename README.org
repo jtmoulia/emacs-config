@@ -428,6 +428,8 @@ Define keybindings for org mode.
     (org-directory (expand-file-name "org" my-sync-dir))
     (org-agenda-files (list (expand-file-name "agenda" org-directory)))
     (org-agenda-skip-deadline-prewarning-if-scheduled t)
+    (org-src-preserve-indentation nil)
+    (org-edit-src-content-indentation nil)
     (org-todo-keywords
      '((sequence
         "TODO(t)"  ; A task that needs doing & is ready to do
