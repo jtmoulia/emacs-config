@@ -1,0 +1,1148 @@
+#+PROPERTY: header-args:emacs-lisp :tangle ./init.el :mkdirp yes
+#+startup: show2levels
+
+* Hogmacs Literate Config
+
+This literate config is tangled to =init.el=.
+
+** Variable Definitions
+
+#+begin_src emacs-lisp
+  ;; TODO: use an actual variable
+  (setq-default my-sync-dir (expand-file-name "~/Sync"))
+#+end_src
+
+** Package Management
+
+=straight= handles package management.
+
+*** Bootstrap straight
+
+#+begin_src emacs-lisp
+  ;; bootstrap the pkg manager
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name
+          "straight/repos/straight.el/bootstrap.el"
+          (or (bound-and-true-p straight-base-dir)
+              user-emacs-directory)))
+        (bootstrap-version 7))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+           'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil 'nomessage))
+#+end_src
+
+*** Configure straight
+
+#+begin_src emacs-lisp
+  ;; Fetch use-package from straight
+  (straight-use-package 'use-package)
+  ;; Configure use-package to install pkgs using straight
+  (setq straight-use-package-by-default t)
+#+end_src
+** Utility Packages
+
+#+begin_src emacs-lisp
+  (use-package a)
+  ;; file manipulation
+  (use-package f)
+  ;; string manipulation
+  (use-package s)
+  ;; other helpers
+  (use-package dash)
+  ;; memoization
+  (use-package memoize)
+#+end_src
+
+** Editor Config
+
+Up the error level, auto-close delimiters, and disable menu/tool
+bars.
+
+#+begin_src emacs-lisp
+  ;; hide warnings, only let errors through
+  (setq warning-minimum-level :error)
+
+  ;; auto-close delimiters
+  (electric-pair-mode 1)
+
+  ;; no menu bar
+  (when (fboundp 'menu-bar-mode)
+    (menu-bar-mode -1))
+  ;; and no tool bar
+  (when (fboundp 'tool-bar-mode)
+    (tool-bar-mode -1))
+#+end_src
+
+** Backup Files
+
+Backup and temporary files are stored in
+=$XDG_CACHE_HOME/emacs/backups= if the env variable =$XDG_CACHE_HOME=
+is defined, else they're stored in =~/.cache/emacs/backups=.
+
+#+begin_src emacs-lisp
+  (let ((backup-dir (expand-file-name "emacs/backups" 
+  				    (or (getenv "XDG_CACHE_HOME") "~/.cache"))))
+    (setq backup-directory-alist `(("." . ,backup-dir)))
+    (setq auto-save-file-name-transforms `((".*" ,backup-dir t))))
+#+end_src
+
+** Theme and Font: fira code dracula
+
+My favorite theme for a minute has been dracula.
+
+#+begin_src emacs-lisp
+  (use-package dracula-theme
+    :config (load-theme 'dracula t))
+#+end_src
+
+Fira Code must be installed before using.
+
+#+begin_src emacs-lisp
+  ;; WARNING: Depends on Fira Code being installed!
+  (setq my-font-size 10)
+  (setq my-font "Fira Code")
+  (set-frame-font my-font nil t)
+  ;; (set-fontset-font t nil (font-spec :name "DejaVu Sans Mono") nil 'append)
+
+  ;; Handle font being tiny in emacs client frames
+  (defun my-set-frame-font ()
+    (set-face-attribute 'default nil :font my-font :height (* my-font-size 10)))
+
+  (if (daemonp)
+      (add-hook 'after-make-frame-functions
+                (lambda (frame)
+                  (with-selected-frame frame (my-set-frame-font))))
+    (my-set-frame-font))
+#+end_src
+
+Icon fonts using =nerd-icons=.
+
+Requires running the command =nerd-icons-install-fonts=.
+
+#+begin_src emacs-lisp
+  (use-package nerd-icons)
+#+end_src
+
+*** Rainbow delimiters
+
+=rainbow-del
+#+begin_src emacs-lisp :tangle yes
+  (use-package rainbow-delimiters
+    :hook ((prog-mode org-mode) . rainbow-delimiters-mode))
+#+end_src
+** Undo: undo-fu
+
+Linear undo / redo is implemented via =undo-fu=. I'm avoiding
+=undo-tree= because I've broken my undo history with it several times.
+
+=evil= depends on =undo-fu= to bind redo.
+
+#+begin_src emacs-lisp
+  (use-package undo-fu)
+#+end_src
+
+Greatly increase the disk space limits granted Emacs undo history:
+
+#+begin_src emacs-lisp
+  (setq undo-limit 67108864) ; 64mb.
+  (setq undo-strong-limit 100663296) ; 96mb.
+  (setq undo-outer-limit 1006632960) ; 960mb
+#+end_src
+
+** Keybindings: general evil
+*** Evil vim
+
+#+begin_src emacs-lisp
+  (use-package evil
+    :after undo-fu
+    :custom
+    (evil-undo-system 'undo-fu)
+    (evil-want-keybinding nil)
+    (evil-want-integration t)
+    :config
+    (evil-mode 1))
+
+  (use-package evil-collection
+    :after evil
+    :custom
+    (evil-collection-setup-minibuffer t)
+    (evil-collection-calendar-want-org-bindings t)
+    :straight (evil-collection :type git
+  			     :host github
+  			     :repo "emacs-evil/evil-collection"))
+
+  ;; Surround: wrap selections with delimiters
+  ;; https://github.com/emacs-evil/evil-surround
+  (use-package evil-surround
+    :ensure t
+    :config
+    (global-evil-surround-mode t))
+#+end_src
+
+*** General leader keybindings
+#+begin_src emacs-lisp
+  ;; helpers
+  (defmacro my-launchers (&rest args)
+    "Add global app launchers defined by ARGS under `SPC-o`"
+    `(general-nmap
+       :prefix "SPC o" ,@args))
+
+  (use-package general
+    :config
+    (general-evil-setup)
+
+    ;; global top-level bindings
+    (general-nmap
+      :prefix "SPC"
+      "SPC" 'switch-to-buffer
+      ":" 'counsel-M-x
+      "u" 'universal-argument)
+
+    ;; global app launchers
+    (my-launchers
+     "e" 'eshell
+     "i" 'ielm)
+
+    ;; global buffer keybindings
+    (general-nmap
+      :prefix "SPC b"
+      "b" 'switch-to-buffer
+      "d" 'kill-this-buffer
+      "D" 'kill-buffer)
+
+    ;; global file keybindings
+    (general-nmap
+      :prefix "SPC f"
+      "f" 'find-file
+      ;; SPC-f-r: open recent files
+      "r" 'recentf-open
+      "s" 'save-buffer
+      "d" 'delete-file)
+
+    ;; global help keybindings
+    (general-nmap
+      :prefix "SPC h"
+      "v" 'describe-variable
+      "f" 'describe-function
+      "k" 'describe-key)
+
+    ;; TODO per-lang evals
+    (general-nmap
+      :prefix ", e"
+      "b" 'eval-buffer
+      "f" 'eval-defun
+      "s" 'eval-last-sexp))
+#+end_src
+** Command pallete: ivy counsel
+
+The command pallete selector is =ivy= with =counsel= shims.
+
+=amx= provides a better extended command  via most-used commands.
+
+#+begin_src emacs-lisp
+  (use-package ivy
+    :custom
+    (ivy-use-virtual-buffers t)
+    (enable-recursive-minibuffer t)
+    (ivy-count-format "(%d/%d) ")
+    (ivy-wrap t)
+    :config
+    (ivy-mode))
+
+  (use-package counsel
+    :after (ivy)
+    :config
+    (counsel-mode))
+
+  ;; https://github.com/clemera/amx
+  (use-package amx
+    :config
+    (amx-mode))
+
+#+end_src
+
+** Autocompletion: corfu
+
+#+begin_src emacs-lisp
+  ;; COMPLETION
+  (use-package corfu
+    :init
+    (setq tab-always-indent 'complete)
+    :config
+    (corfu-mode 1))
+#+end_src
+
+** Snippets: yasnippet
+
+=yasnippet= provides snippets.
+
+Use the global normal mode binding =SPC i s= to insert a snippet via
+=yas-insert-snippet=.
+
+#+begin_src emacs-lisp
+  ;; setup yasnippet
+  (use-package yasnippet
+    :init
+    (general-nmap
+      :prefix "SPC i"
+      "s" #'yas-insert-snippet
+      "e" #'yas-visit-snippet-file)
+    :config
+    :hook ((prog-mode . yas-minor-mode)
+  	 (org-mode . yas-minor-mode)))
+
+  ;; and all the snippets
+  (use-package yasnippet-snippets
+    :after (yasnippet)
+    :config
+    (yas-reload-all))
+#+end_src
+
+** Projects
+=projectile= handles project management.
+
+#+begin_src emacs-lisp
+  ;;;;;
+  ;; PROJECTS
+  (use-package projectile
+    :after (general)
+    :custom
+    (projectile-project-search-path (list (expand-file-name "~/src")))
+    :config
+    (general-nmap
+      :prefix "SPC"
+      "SPC" 'projectile-find-file)
+    (general-nmap
+      :prefix "SPC p"
+      "p" 'projectile-switch-project)
+    (projectile-mode t))
+#+end_src
+
+** Org Mode
+
+Features used:
+
+  - =org-capture=
+  - =org-agenda=
+  - =org-indent-mode=
+  - =org-super-agenda=
+  - =ox-hugo=
+  - =org-rifle=
+
+*** Org Keybindings
+
+Define keybindings for org mode.
+
+#+begin_src emacs-lisp
+  (defun my-setup-org-keybindings ()
+    (evil-set-initial-state 'org-agenda-mode 'motion)
+
+    ;; org mode top-level bindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      ;; keep default TAB behavior, even in normal mode
+      "TAB" #'org-cycle)
+
+    ;; org mode leader bindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ","
+      "A" #'org-archive-subtree)
+    
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ", c"
+      "c" #'org-ctrl-c-ctrl-c)
+
+    ;; org source block bindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ", e"
+      "e" #'org-edit-special
+      "t" #'org-babel-tangle
+      ;; org export (ox) keybindings
+      "E" #'org-export-dispatch)
+
+    ;; org edit soure mode bindings
+    (general-nmap
+      :keymaps 'org-src-mode-map
+      :prefix ", e"
+      "e" #'org-edit-src-exit
+      "k" #'org-edit-src-abort)
+
+    ;; org scheduling keybindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ", d"
+      "s" #'org-schedule)
+
+    ;; org todo keybindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ", t"
+      "t" #'org-todo)
+
+    ;; org todo keybindings
+    (general-nmap
+      :keymaps 'org-mode-map
+      :prefix ", h"
+      "s" #'counsel-org-goto
+      "<" #'org-promote-subtree
+      ">" #'org-demote-subtree)
+
+    ;; org-agenda keybindings
+    (general-nmap
+      :keymaps 'org-agenda-mode-map
+      "q" #'org-agenda-exit
+      "j" #'org-agenda-next-line
+      "k" #'org-agenda-previous-line
+      "g j" #'org-agenda-next-item
+      "g k" #'org-agenda-previous-item
+      "g H" #'evil-window-top
+      "g M" #'evil-window-middle
+      "g L" #'evil-window-bottom)
+
+    (general-nmap
+      :keymaps 'org-agenda-mode-map
+      :prefix ","
+      "d t" #'org-agenda-schedule
+      "t t" #'org-agenda-todo)
+
+    (my-launchers "a" 'org-agenda-execute))
+#+end_src
+
+*** Org config
+
+#+begin_src emacs-lisp
+  (use-package org
+    :hook ((org-mode . auto-fill-mode)
+  	 (org-mode . org-indent-mode))
+
+    :custom
+    (org-directory (expand-file-name "org" my-sync-dir))
+    (org-agenda-files (list (expand-file-name "agenda" org-directory)))
+    (org-agenda-skip-deadline-prewarning-if-scheduled t)
+    (org-todo-keywords
+     '((sequence
+        "TODO(t)"  ; A task that needs doing & is ready to do
+        "PROJ(p)"  ; A project, which usually contains other tasks
+        "LOOP(r)"  ; A recurring task
+        "STRT(s)"  ; A task that is in progress
+        "WAIT(w)"  ; Something external is holding up this task
+        "HOLD(h)"  ; This task is paused/on hold because of me
+        "IDEA(i)"  ; An unconfirmed and unapproved task or notion
+        "|"
+        "DONE(d)"  ; Task successfully completed
+        "KILL(k)") ; Task was cancelled, aborted, or is no longer applicable
+       (sequence
+        "[ ](T)"   ; A task that needs doing
+        "[-](S)"   ; Task is in progress
+        "[?](W)"   ; Task is being held up or paused
+        "|"
+        "[X](D)")  ; Task was completed
+       (sequence
+        "|"
+        "OKAY(o)"
+        "YES(y)"
+        "NO(n)")))
+
+    :config
+    (setq my//org-capture-my-todo-file "agenda/mine.org")
+    (setq my//org-capture-regard-todo-file "agenda/ht.org")
+    (setq my//org-capture-bookmark-file (f-join org-directory "bookmarks.org"))
+    (setq my//org-log-file "~/src/hoglog/content-org/journal.org")
+    
+    (setq
+     org-capture-templates
+     `(("t" "capture todo item")
+       ("r" "regard capture")
+       ("b" "bookmarks")
+       ("l" "log")
+       ("tm" "capture my todo item" entry
+        (file+headline
+         ,(expand-file-name my//org-capture-my-todo-file org-directory)
+         "Inbox")
+        "* TODO %?\n%i\n%a" :prepend t)
+     ("bb" "capture bookmark" entry
+      (file+headline my//org-capture-bookmark-file "Inbox")
+      "* %?\n:PROPERTIES:\n:CREATED: %U\n:URL: %a\n:END:\n\n" :prepend t)
+     ("ll" "capture log" entry
+      (file+headline my//org-log-file "Log")
+      "* %(format-time-string \"%B %-dth, '%y\"): %?
+  SCHEDULED: %T
+  :PROPERTIES:\n:EXPORT_FILE_NAME: %(format-time-string \"%Y-%m-%d\")\n:END:\n\n"
+      :prepend t)))
+
+    (defun my-org-copy-link ()
+      "Insert the org link under the cursor into the kill ring."
+      (interactive)
+      (let ((object (org-element-context)))
+        (when (eq (car object) 'link)
+  	(kill-new (org-element-property :raw-link object)))))
+
+    (defun my-org-eww-link ()
+      "Open the org link under the cursor in eww."
+      (interactive)
+      (let ((object (org-element-context)))
+        (when (eq (car object) 'link)
+  	(eww (org-element-property :raw-link object)))))
+
+    (my-setup-org-keybindings))
+#+end_src
+
+**** Agenda config
+
+Custom agendas are managed using =org-super-agenda=.
+
+#+begin_src emacs-lisp
+  (use-package org-super-agenda
+    :commands (org-super-agenda-mode)
+    :custom
+    (org-agenda-custom-commands
+     '(("A" "Absolutely Awesome Agenda"
+        ((alltodo "" ((org-agenda-overriding-header "All Tasks")
+                      (org-super-agenda-groups
+                       '((:name "Important"
+                                :tag "Important"
+                                :priority "A"
+                                :order 6)
+                         (:name "Due Today"
+                                :deadline today
+                                :order 2)
+                         (:name "Due Soon"
+                                :deadline future
+                                :order 3)
+                         (:name "Overdue"
+                                :deadline past
+                                :order 1)
+                         (:name "Done"
+                                :and (:tag "regard" :todo ("DONE" "KILL"))
+                                :order 9)
+                         (:discard (:anything t))))))))
+
+       ("M" "my agenda"
+        ((agenda "" ((org-agenda-span 'week)
+                     (org-super-agenda-groups
+                      '((:discard (:tag "regard"))
+                        (:name "Time Grid"
+                               :time-grid t  ; Items that appear on the time grid
+                               :order 0)  ; Items that have this TODO keyword
+                        (:name "Mine In Progress"
+                               :and (:tag "mine" :not (:todo ("DONE" "WAIT")))
+                               :order 1)  ; Items that have this TODO keyword
+                        (:name "Mine Completed"
+                               :and (:tag "mine" :todo ("DONE" "WAIT"))
+                               :order 2)))))))))
+
+    (org-super-agenda-mode t)
+    )
+#+end_src
+
+**** Deft config
+
+#+begin_src emacs-lisp
+  (use-package deft
+    :commands (deft)
+    :after general
+    :init (my-launchers "n" 'deft)
+    :custom
+    (deft-recursive t)
+    ;; TODO: refactor paths to var
+    (deft-directory (expand-file-name "~/Sync/org/notes"))
+    :config
+    (general-nmap :keymap 'deft-mode "q" 'kill-this-buffer))
+#+end_src
+
+**** Hugo blogging
+
+=ox-hugo= is used to publish my org files to sites.
+
+#+begin_src emacs-lisp
+  (use-package ox-hugo
+    :after ox
+    :config
+    (with-eval-after-load 'ox
+      (require 'ox-hugo)))
+#+end_src
+
+*** TODO Org ql config
+
+Note: I don't currently use org-ql, or, more to the point, know how to
+use it.
+
+#+begin_src emacs-lisp
+  (use-package org-ql)
+#+end_src
+
+** Window Management
+In the window management category are a couple tools:
+
+- =popper= for popup management / drawer-like behavior
+- =ace-window= for quick window switching
+
+*** Popup handling: popper
+
+=popper= keeps popup windows like =eshell= or =Warnings= from getting
+out of hand.
+
+#+begin_src emacs-lisp
+  (use-package popper
+    :init
+    (setq popper-reference-buffers
+  	'("\\*Messages\\*"
+  	  "\\*eshell\\*"
+  	  "\\*Deft\\*"
+  	  "Output\\*$"
+  	  "\\*Async Shell Command\\*"
+  	  "\\*chatgpt\\*"
+            "\\*Warnings\\*"
+            "\\*Backtrace\\*"
+            "\\*Org Select\\*"
+  	  "\\*ielm\\*"
+  	  help-mode
+  	  compilation-mode))
+    (popper-mode +1)
+    (popper-echo-mode +1)
+    :config
+    (general-nmap
+      :prefix "SPC"
+      "~" 'popper-toggle)
+    (general-nmap
+      :prefix "SPC c"
+      "c" 'popper-toggle
+      "n" 'popper-cycle
+      "t" 'popper-toggle-type))
+#+end_src
+
+*** Window switching: ace-window
+
+=ace-window= switching is bound
+
+#+begin_src emacs-lisp
+  (use-package ace-window
+    :commands (avy-window)
+    :custom
+    (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l))
+    :config
+    (general-nmap :prefix "C-w"
+      "C-w" #'ace-window
+      "w" #' ace-window))
+#+end_src
+
+*** Jumping: avy
+
+#+begin_src emacs-lisp
+  (use-package avy
+    :config
+    (general-nmap
+      :prefix "SPC j"
+      "j" #'avy-goto-char
+      "l" #'avy-goto-line
+      "b" #'ace-window)
+
+    (general-nmap
+      :prefix "SPC"
+      "J" #'avy-goto-char))
+#+end_src
+
+*** Cursor: beacon
+
+=beacon= flashes up a colorful splash of color whenever the cursor
+jumps so I don't lose it.
+
+This is especially useful when jumping to a buffer without selecting a
+location, or when the buffer scroll jumps.
+
+#+begin_src emacs-lisp
+  (use-package beacon
+    :custom 
+    (beacon-color "#ff79c6")
+    (beacon-blink-duration 0.3)
+    (beacon-size 20)
+    :config
+    (beacon-mode 1))
+#+end_src
+** Modeline: doom-modeline
+
+#+begin_src emacs-lisp
+  (use-package doom-modeline
+    :ensure t
+    :init (doom-modeline-mode 1))
+#+end_src
+
+** Secrets: 1password
+
+Define a helper function for fetching secrets from =1password=
+
+WARNING: Depends on =1password-cli= being installed.
+
+#+begin_src emacs-lisp
+  (cl-defun my-1pass-get (item &optional (vault "Private") (key "password"))
+    (let* ((arg-url (concat "op://" vault "/" item "/" key))
+  	 (args (list "op" "read" arg-url))
+  	 (args-string (apply 'concat (-interpose " " args))))
+        (s-trim (shell-command-to-string args-string))))
+#+end_src
+
+** Version Control: magit
+
+#+begin_src emacs-lisp
+  (use-package magit
+    :after (general evil-collection)
+    :commands magit-status
+
+    :init
+    (general-nmap
+      :prefix "SPC g"
+      "g" #'magit-status)
+
+    :config
+    (evil-collection-init 'magit))
+#+end_src
+
+** Email: mu4e
+
+#+begin_src emacs-lisp :tangle no
+  (use-package mu4e
+    :straight ( :type git :host github :repo "djcb/mu"
+  	      :build (("./autogen.sh") ("make"))
+  	      :files (:defaults "mu4e/*.el"))
+    :custom (mu4e-mu-binary "~/.config/emacs/straight/repos/mu/build/mu/mu")
+    :config
+    (defvar my-mu4e--personal-gmail-all-mail
+      "/gmail/[Gmail].All Mail"
+      "The endless email directory for personal gmail.")
+
+    (defvar my-mu4e--healthtensor-gmail-all-mail
+      "/healthtensor/[Gmail].All Mail"
+      "The endless email directory for HealthTensor's gmail.")
+
+    (defvar my-mu4e--mailing-lists-alist
+      `(((,my-mu4e--personal-gmail-all-mail . "/gmail/[Gmail].Trash")
+         . ("mu-discuss@googlegroups.com"
+            "jtmoulia@alum.mit.edu"))
+        ((,my-mu4e--healthtensor-gmail-all-mail . "/healthtensor/[Gmail].Trash")
+         . ("scalar@healthtensor.com"))
+        )
+      "List of mailing list addresses and folders where their messages are saved")
+
+    (setq my-mu4e--mailing-lists-alist
+  	`(((,my-mu4e--personal-gmail-all-mail . "/gmail/[Gmail].Trash")
+  	   . ("mu-discuss@googlegroups.com"
+                "jtmoulia@alum.mit.edu"))
+  	  ;; ((,my-mu4e--healthtensor-gmail-all-mail . "/healthtensor/[Gmail].Trash")
+  	  ;;  . ("mu-discuss@googlegroups.com"))
+  	  ))
+
+    (defvar my-mu4e--headers-hide-all-mail
+      nil
+      "Whether to show `[Gmail].All Mail' in mu4e headers view")
+
+    (cl-defun my-mu4e//get-refile-for-mailing-list
+  	  (msg &optional (mailing-list-alist my-mu4e--mailing-lists-alist))
+  	  "Return the account associated with the provided mailing-list"
+  	  (if mailing-list-alist
+  	      (let ((next-mailing-list (car mailing-list-alist)))
+  		(if (seq-filter (lambda (mailing-list)
+  				  (mu4e-message-contact-field-matches msg :to mailing-list))
+  				(cdr next-mailing-list))
+  		    (car next-mailing-list)
+  		  (my-mu4e//get-refile-for-mailing-list msg (cdr mailing-list-alist))))))
+
+    (defun my-mu4e//refile-folder-function (msg)
+      (let* ((maildir (mu4e-message-field msg :maildir))
+             (subject (mu4e-message-field msg :subject))
+             (mailing-list (my-mu4e//get-refile-for-mailing-list msg)))
+        (cond
+         (mailing-list (car mailing-list))
+         ((string-match "^/gmail" maildir)
+  	my-mu4e--personal-gmail-all-mail)
+         ((string-match "^/healthtensor" maildir)
+  	my-mu4e--healthtensor-gmail-all-mail)
+         ;; this is this function . . .
+         (t mu4e-refile-folder)
+         )))
+
+    (defun my-mu4e//trash-folder-function (msg)
+      (let* ((maildir (mu4e-message-field msg :maildir))
+             (subject (mu4e-message-field msg :subject))
+             (mailing-list (my-mu4e//get-refile-for-mailing-list msg)))
+        (cond
+         (mailing-list (cdr mailing-list))
+         ((string-match "^/gmail" maildir) "/gmail/[Gmail].Trash")
+         ((string-match "^/healthtensor" maildir) "/healthtensor/[Gmail].Trash")
+         ;; this is this function . . .
+         (t mu4e-trash-folder)
+         )))
+
+    ;; `mu4e-trash-folder' is defined here because it's not working in `:vars' :/
+    ;; Luckily, it's the same folder across all contexts.
+    (setq-default mu4e-trash-folder #'my-mu4e//trash-folder-function)
+
+    ;; Configure Contexts
+    (setq-default
+     mu4e-contexts
+     `(
+       ,(make-mu4e-context
+         :name "healthtensor"
+         :enter-func
+         (lambda ()
+  	 (mu4e-message
+            (concat "Switching to context: healthtensor")))
+         :match-func
+         (lambda (msg)
+  	 (when msg
+             (mu4e-message-contact-field-matches
+              msg :to "thomas@healthtensor.com")))
+         :vars '((user-mail-address . "thomas@healthtensor.com")
+                 (user-full-name . "Thomas Moulia")
+                 (mu4e-inbox-folder . "/healthtensor/INBOX")
+                 (mu4e-sent-folder . "/healthtensor/[Gmail].Sent Mail")
+                 (mu4e-drafts-folder . "/healthtensor/[Gmail].Drafts")
+                 (mu4e-trash-folder . "/healthtensor/[Gmail].Trash")
+                 ;; (mu4e-trash-folder . my-mu4e//trash-folder-function)
+                 (mu4e-refile-folder . my-mu4e//refile-folder-function)
+                 (mu4e-spam-folder . "/healthtensor/[Gmail].Spam")
+                 (smtpmail-smtp-user . "thomas@healthtensor.com")
+                 (smtpmail-default-smtp-server . "smtp.gmail.com")
+                 (smtpmail-smtp-server . "smtp.gmail.com")
+                 (smtpmail-stream-type . starttls)
+                 (smtpmail-smtp-service . 587)))
+       ,(make-mu4e-context
+         :name "gmail"
+         :enter-func
+         (lambda ()
+  	 (mu4e-message
+            (concat "Switching to context: gmail")))
+         :match-func
+         (lambda (msg)
+  	 (when msg
+             (mu4e-message-contact-field-matches msg
+                                                 :to "jtmoulia@gmail.com")))
+         :vars '((user-mail-address . "jtmoulia@gmail.com")
+                 (user-full-name . "Thomas Moulia")
+                 (mu4e-inbox-folder . "/gmail/INBOX")
+                 (mu4e-sent-folder . "/gmail/[Gmail].Sent Mail")
+                 (mu4e-drafts-folder . "/gmail/[Gmail].Drafts")
+                 (mu4e-trash-folder . "/gmail/[Gmail].Trash")
+                 ;; (mu4e-trash-folder . my-mu4e//trash-folder-function)
+                 (mu4e-refile-folder . my-mu4e//refile-folder-function)
+                 (mu4e-spam-folder . "/gmail/[Gmail].Spam")
+                 (smtpmail-smtp-user . "jtmoulia@gmail.com")
+                 (smtpmail-default-smtp-server . "smtp.gmail.com")
+                 (smtpmail-smtp-server . "smtp.gmail.com")
+                 (smtpmail-stream-type . starttls)
+                 (smtpmail-smtp-service . 587)))
+       ,(make-mu4e-context
+         :name "pocketknife"
+         :enter-func
+         (lambda ()
+  	 (mu4e-message
+            (concat "Switching to context: pocketknife")))
+         :match-func
+         (lambda (msg)
+  	 (when msg
+             (mu4e-message-contact-field-matches
+              msg :to "jtmoulia@pocketknife.io")))
+         :vars '((user-mail-address . "jtmoulia@pocketknife.io")
+                 (user-full-name . "Thomas Moulia")
+                 (mu4e-inbox-folder . "/pocketknife/INBOX")
+                 (mu4e-sent-folder . "/pocketknife/INBOX.Sent Items")
+                 (mu4e-drafts-folder . "/pocketknife/INBOX.Drafts")
+                 ;; (mu4e-trash-folder . my-mu4e//trash-folder-function)
+                 (mu4e-refile-folder . my-mu4e//refile-folder-function)
+                 (mu4e-spam-folder . "/pocketknife/Junk Mail")
+                 (smtpmail-smtp-user . "jtmoulia@pocketknife.io")
+                 (smtpmail-default-smtp-server . "mail.messagingengine.com")
+                 (smtpmail-smtp-server . "mail.messagingengine.com")
+                 (smtpmail-stream-type . ssl)
+                 (smtpmail-smtp-service . 465)))
+       ))
+
+
+    (require 'mu4e-contrib)
+
+    ;; Configure Vars
+    (setq-default
+     ;; mu4e-mu-binary         (-first #'file-exists-p `(,(expand-file-name "~/.guix-home/profile/bin/mu")
+     ;;                                                  ,(expand-file-name "~/.guix-profile/bin/mu")
+     ;;                                                  "/usr/bin/mu"
+     ;;                                                  "/opt/homebrew/bin/mu"))
+     ;; top-level maildir, email fetcher should be configured to save here
+     mu4e-root-maildir     "~/.mail"
+     mu4e-confirm-quit      nil
+     mu4e-get-mail-command  "~/.local/bin/my-offlineimap"
+     mu4e-headers-skip-duplicates t
+     mu4e-headers-include-related nil
+     mu4e-update-interval   600
+     mu4e-index-lazy-check  nil
+     mu4e-use-fancy-chars   t
+
+     mu4e-compose-dont-reply-to-self t
+     mu4e-compose-complete-only-personal t
+     mu4e-hide-index-messages t
+     mu4e-html2text-command 'mu4e-shr2text
+     ;; User info
+     message-auto-save-directory (concat (file-name-as-directory mu4e-root-maildir)
+                                         "drafts")
+     send-mail-function 'smtpmail-send-it
+     message-send-mail-function 'smtpmail-send-it
+     smtpmail-stream-type 'ssl
+     smtpmail-auth-credentials (expand-file-name "~/.authinfo.gpg")
+     ;; smtpmail-queue-mail t
+     smtpmail-queue-dir  (expand-file-name "~/.mail/queue/cur"))
+
+    (setq org-msg-signature "
+  Cheers,\\\\
+  -Thomas
+
+  ,#+begin_signature
+  ---\\\\
+  Thomas Moulia\\\\
+  Co-Founder & CTO | HealthTensor\\\\
+  www.healthtensor.com\\\\
+  jtmoulia.pocketknife.io\\\\
+  ,#+end_signature")
+
+    ;; Helper functions for composing bookmarks from contexts
+    (defun my-mu4e//mu4e-context (context-name)
+      "Return the context in `mu4e-contexts' with name CONTEXT-NAME.
+
+  Raises an error if that context isn't present."
+      (let* ((names (mapcar (lambda (context)
+                              (cons (mu4e-context-name context) context))
+                            mu4e-contexts))
+             (context (cdr (assoc context-name names))))
+        (if context
+            context
+  	(error "no context with name: %s" context-name))))
+
+    (defun my-mu4e//mu4e-context-get-var (context var)
+      "For CONTEXT return VAR. Helper function for access."
+      (cdr (assoc var (mu4e-context-vars context))))
+
+    (defun my-mu4e//mu4e-context-var (context-name var)
+      "Return the value of VAR for the context with name CONTEXT-NAME, searching
+  `mu4e-contexts'."
+      (my-mu4e//mu4e-context-get-var
+       (my-mu4e//mu4e-context context-name)
+       var))
+
+    (defun my-mu4e//mu4e-contexts-var (var)
+      "Return a list of the value for VAR across `mu4e-contexts'. If VAR is
+  undefined for a context, it will be filtered out."
+      (delq nil
+            (mapcar (lambda (context)
+                      (my-mu4e//mu4e-context-get-var context var))
+                    mu4e-contexts)))
+
+    (defun my-mu4e//mu4e-add-maildir-prefix (maildir)
+      "Add maildir: prefix to MAILDIR for mu queries."
+      (concat "maildir:\"" maildir "\""))
+
+    (defun my-mu4e//flat-cat (&rest list)
+      "Flatten and concatenate LIST."
+      (apply 'concat (-flatten list)))
+
+    (defun my-mu4e//flat-cat-pose (sep &rest list)
+      "Unabashed helper function to interpose SEP padded with
+  spaces into LIST. Return the padded result."
+      (my-mu4e//flat-cat
+       (-interpose (concat " " sep " ") list)))
+
+    (cl-defun my-mu4e//wrap-terms (terms &key (prefix "") (sep "AND"))
+  	  (apply 'my-mu4e//flat-cat-pose sep
+  		 (-map (lambda (term) (concat "(" prefix "\"" term "\"" ")")) terms)))
+
+    (cl-defun my-mu4e//mu4e-query
+  	  (var &key (prefix "") (sep "AND"))
+  	  (my-mu4e//wrap-terms (my-mu4e//mu4e-contexts-var var) :prefix prefix :sep sep))
+
+    (defun my-mu4e//bm-or (&rest list)
+      (apply 'my-mu4e//flat-cat-pose "OR" list))
+
+    (defun my-mu4e//bm-and (&rest list)
+      (apply 'my-mu4e//flat-cat-pose "AND" list))
+
+    (defun my-mu4e//bm-not (item)
+      (concat "NOT " item))
+
+    (defun my-mu4e//bm-wrap (item)
+      (concat "(" item ")"))
+
+    (defun my-mu4e//not-spam ()
+      (my-mu4e//mu4e-query 'mu4e-spam-folder
+  			 :prefix "NOT maildir:"))
+
+    (defun my-mu4e//not-trash ()
+      (my-mu4e//wrap-terms
+       '("/gmail/[Gmail].Trash" "/healthtensor/[Gmail].Trash" "/pocketknife/INBOX.Trash")
+       :prefix "NOT maildir:"))
+
+    (defun my-mu4e//inboxes ()
+      (my-mu4e//bm-wrap
+       (apply 'my-mu4e//bm-or
+              (mapcar 'my-mu4e//mu4e-add-maildir-prefix
+                      (my-mu4e//mu4e-contexts-var 'mu4e-inbox-folder)))))
+
+    (defun my-mu4e//sent-folders ()
+      (my-mu4e//bm-wrap
+       (apply 'my-mu4e//bm-or
+              (mapcar 'my-mu4e//mu4e-add-maildir-prefix
+                      (my-mu4e//mu4e-contexts-var 'mu4e-sent-folder)))))
+
+    ;; mu4e bookmarks -- this is the magic
+    (setq mu4e-bookmarks
+  	`((,(my-mu4e//bm-and
+               "flag:unread" "NOT flag:trashed" (my-mu4e//not-spam) (my-mu4e//not-trash))
+             "Unread messages" ?u)
+            (,(my-mu4e//bm-and
+               "date:7d..now" "flag:unread" "NOT flag:trashed" (my-mu4e//not-spam) (my-mu4e//not-trash))
+             "Unread messages from the last week" ?U)
+            (,(my-mu4e//inboxes)
+             "All inboxes", ?i)
+            (,(my-mu4e//bm-and "date:7d..now" (my-mu4e//bm-or (my-mu4e//inboxes)))
+             "All inbox messages from the last week", ?I)
+            (,(my-mu4e//bm-and "date:today..now" (my-mu4e//not-spam))
+             "Today's messages" ?t)
+            (,(my-mu4e//bm-and "date:7d..now" (my-mu4e//not-spam) (my-mu4e//not-trash))
+             "Last 7 days no trash or spam" ?w)
+            ("date:7d..now"
+             "Last 7 days" ?W)
+            (,(my-mu4e//bm-and "mime:image/*" (my-mu4e//not-spam))
+             "Messages with images" ?p)
+            (,(my-mu4e//sent-folders)
+             "Sent mail" ?s)
+            (,(my-mu4e//bm-and "date:7d..now" (my-mu4e//sent-folders))
+             "Sent mail from the last week" ?S)
+            (,(my-mu4e//bm-and "flag:unread" "NOT flag:trashed" (my-mu4e//not-spam))
+             "Unread spam" ?z))
+  	)
+
+    (setq mu4e-maildir-shortcuts
+  	`((,(my-mu4e//mu4e-context-var "gmail" 'mu4e-inbox-folder) . ?g)
+            (,(my-mu4e//mu4e-context-var "healthtensor" 'mu4e-inbox-folder) . ?h)))
+
+    ;; Configure mu4e-alert
+    ;; (setq mu4e-alert-interesting-mail-query (my-mu4e//bm-and (my-mu4e//inboxes) "flag:unread")
+    ;; 	mu4e-alert-style 'libnotify
+    ;; 	mu4e-alert-email-notification-types '(subjects))
+    ;; (mu4e-alert-enable-notifications)
+
+    ;; See single folder config: https://groups.google.com/forum/#!topic/mu-discuss/BpGtwVHMd2E
+    (add-hook 'mu4e-mark-execute-pre-hook
+              (lambda (mark msg)
+                (cond
+                 ((equal mark 'refile) (mu4e-action-retag-message msg "-\\Inbox"))
+                 ((equal mark 'trash) (mu4e-action-retag-message msg "-\\Inbox,-\\Starred"))
+                 ((equal mark 'flag) (mu4e-action-retag-message msg "-\\Inbox,\\Starred"))
+                 ((equal mark 'unflag) (mu4e-action-retag-message msg "-\\Starred")))))
+
+    ;; GMail has duplicate messages between All Mail and other directories.
+    ;; This function allows the
+    (defun my-mu4e-headers-toggle-all-mail (&optional dont-refresh)
+      "Toggle whether to hide all mail and re-render"
+      (interactive)
+      (setq my-mu4e--headers-hide-all-mail (not my-mu4e--headers-hide-all-mail))
+      (unless dont-refresh
+        (mu4e-headers-rerun-search)))
+
+    (defun my-mu4e-headers-hide-predicate (msg)
+      (if my-mu4e--headers-hide-all-mail
+  	(string-equal "/healthtensor/[Gmail].All Mail" (mu4e-message-field msg :maildir))))
+
+    (setq mu4e-headers-hide-predicate #'my-mu4e-headers-hide-predicate))
+#+end_src
+
+** ChatGPT: chatgpt-shell
+
+#+begin_src emacs-lisp
+  (use-package chatgpt-shell
+    :commands (chatgpt-shell)
+    :init 
+    (my-launchers "c" 'chatgpt-shell)
+    :config
+    ;; set up chatgpt-shell to work with with org babel code blocks
+    ;; HACK: for some reason straight build doesn't include ob-chatgpt-shell. So,
+    ;; instead we add the repo dir to the load-path :shrug:
+    (add-to-list 'load-path "~/.config/emacs/straight/repos/chatgpt-shell")
+    (require 'ob-chatgpt-shell)
+    (ob-chatgpt-shell-setup)
+
+    ;; The "Prorg" prompt just uses the "Programming" prompt with org-mode formatting
+    (add-to-list 'chatgpt-shell-system-prompts
+  	       `("Prorg" . ,(string-replace
+  			     "markdown" "org-mode markup"
+  			     (a-get chatgpt-shell-system-prompts "Programming"))))
+
+    ;; Use the programming prompt in the shell as it plays well with the formatting
+    (setq chatgpt-shell-system-prompt
+  	(cl-position "Programming" chatgpt-shell-system-prompts :key #'car :test #'equal))
+
+    (setq chatgpt-shell-openai-key (memoize (lambda () (my-1pass-get "chatgpt-shell")))))
+#+end_src
+
+** RSS
+
+=elfeed=
+
+#+begin_src emacs-lisp
+  (use-package elfeed
+    :custom
+    (elfeed-search-filter "@6-months-ago +unread")
+    ;; use synchronized folder for elfeed
+    (elfeed-db-directory (expand-file-name "org/elfeed.db" my-sync-dir))
+
+    :config
+    ;; automatically update the elfeed when opened
+    (add-hook 'elfeed-search-mode-hook #'elfeed-update)
+
+    ;; (require 'elfeed-tube)
+    ;; ;; load and configure elfeed-tube
+    ;; (elfeed-tube-setup)
+    ;; (define-key elfeed-show-mode-map (kbd "F") 'elfeed-tube-fetch)
+    ;; (define-key elfeed-show-mode-map [remap save-buffer] 'elfeed-tube-save)
+    ;; (define-key elfeed-search-mode-map (kbd "F") 'elfeed-tube-fetch)
+    ;; (define-key elfeed-search-mode-map [remap save-buffer] 'elfeed-tube-save)
+    (my-launchers "r" #'elfeed))
+#+end_src
+
+*** elfeed-org
+
+=elfeed-org= an org file driving the feed definitions.
+
+#+begin_src emacs-lisp :tangle yes
+  (use-package elfeed-org
+    :after (elfeed org)
+    :custom
+    (rmh-elfeed-org-files (list
+  			 (expand-file-name "elfeed.org" org-directory)))
+    :config
+    (general-nmap
+      :keymap 'elfeed-search-mode-map
+      "q" #'elfeed-kill-buffer
+      "RET" #'elfeed-search-show-entry))
+#+end_src
+
+** Mastodon
+
+TOOT TOOT! =mastodon=
+
+#+BEGIN_SRC emacs-lisp
+  (use-package mastodon
+    :commands (mastodon)
+    :init (my-launchers "M" 'mastodon)
+    :custom
+    (mastodon-active-user "jtmoulia")
+    (mastodon-instance-url "https://mstdn.social"))
+#+END_SRC
+
+* Tasks
+
+** TODO Add bindings for yas edit, e.g. ", e e" to commit (or ", c c?")
