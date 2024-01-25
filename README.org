@@ -183,12 +183,15 @@ Greatly increase the disk space limits granted Emacs undo history:
     (evil-collection-calendar-want-org-bindings t)
     :straight (evil-collection :type git
   			     :host github
-  			     :repo "emacs-evil/evil-collection"))
+  			     :repo "emacs-evil/evil-collection")
+    :config
+    (evil-set-initial-state 'info-mode 'normal))
+
 
   ;; Surround: wrap selections with delimiters
   ;; https://github.com/emacs-evil/evil-surround
   (use-package evil-surround
-    :ensure t
+    :after evil
     :config
     (global-evil-surround-mode t))
 #+end_src
@@ -245,13 +248,24 @@ Greatly increase the disk space limits granted Emacs undo history:
       :prefix ", e"
       "b" 'eval-buffer
       "f" 'eval-defun
-      "s" 'eval-last-sexp))
+      "s" 'eval-last-sexp)
+
+    ;; info-mode
+    ;; (general-nmap
+    ;;   :keymap 'Info-mode-map
+    ;;   "RET" 'Info-follow-nearest-node
+    ;;   ; "u" 'Info-up
+    ;;   "C-p" 'Info-backward-node
+    ;;   "C-n" 'Info-forward-node
+    ;;   "M-p" 'Info-history-back
+    ;;   "M-n" 'Info-history-forward)
+    )
 #+end_src
 ** Command pallete: ivy counsel
 
 The command pallete selector is =ivy= with =counsel= shims.
 
-=amx= provides a better extended command  via most-used commands.
+=amx= provides a better extended command via most-used commands.
 
 #+begin_src emacs-lisp
   (use-package ivy
@@ -266,7 +280,14 @@ The command pallete selector is =ivy= with =counsel= shims.
   (use-package counsel
     :after (ivy)
     :config
-    (counsel-mode))
+    (counsel-mode)
+    ;; eshell counsel bindings (move to emacs specific config)
+    (general-nmap
+       :mode 'eshell-mode-map
+       :prefix ","
+       "r" 'counsel-esh-history
+       ;; TODO: Need to switch to insert to clear
+       "c" 'eshell/clear))
 
   ;; https://github.com/clemera/amx
   (use-package amx
@@ -312,25 +333,45 @@ Use the global normal mode binding =SPC i s= to insert a snippet via
     (yas-reload-all))
 #+end_src
 
-** Projects
+** Projects: projectile
+
 =projectile= handles project management.
 
+Cover projectile commands with ivy using =counsel-projectile=.
+
 #+begin_src emacs-lisp
-  ;;;;;
-  ;; PROJECTS
   (use-package projectile
     :after (general)
     :custom
     (projectile-project-search-path (list (expand-file-name "~/src")))
     :config
-    (general-nmap
-      :prefix "SPC"
-      "SPC" 'projectile-find-file)
-    (general-nmap
-      :prefix "SPC p"
-      "p" 'projectile-switch-project)
     (projectile-mode t))
 #+end_src
+
+=counsel-projectile= package config:
+
+#+begin_src emacs-lisp
+  (use-package counsel-projectile
+    :after projectile
+    :config
+    (counsel-projectile-mode 1)
+    (general-nmap
+      :prefix "SPC"
+      "SPC" 'counsel-projectile-find-file)
+    (general-nmap
+      :prefix "SPC p"
+      "p" 'counsel-projectile-switch-project
+      "f" 'counsel-projectile-find-file
+      "s" 'counsel-projectile-rg))
+#+end_src
+
+** Text Search: ripgrep
+
+Using =ripgrep= to search across multiple files.
+
+#+begin_src emacs-lisp
+  (use-package ripgrep)
+#+End_src
 
 ** Org Mode
 
@@ -719,39 +760,62 @@ WARNING: Depends on =1password-cli= being installed.
     (evil-collection-init 'magit))
 #+end_src
 
+** Python: LSP & eglot & pyright
+
+Configure eglot with a list of Python alternatives -- typically
+running pyright behind poetry is the way to go.
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'eglot
+    (add-to-list 'eglot-server-programs
+                 `((python-mode python-ts-mode) .
+		   ,(eglot-alternatives '("pylsp" "pyls" ("poetry" "run" "pyright-langserver" "--stdio")  ("pyright-langserver" "--stdio") "jedi-language-server")))))
+#+end_src
+
+Use =emacs-python-pytest= to run pytest from Emacs:
+
+#+begin_src emacs-lisp
+  (use-package python-pytest
+    :custom
+    (python-pytest-executable "poetry run pytest"))
+#+end_src
+
+** Markdown: markdown-mode
+
+Using =jrblevin/markdown-mode= to handle markdown documents.
+
+#+begin_src emacs-lisp
+  (use-package markdown-mode
+    :mode ("*\\.md" . gfm-mode)
+    :init (setq markdown-command "multimarkdown"))
+#+end_src
+
 ** Email: mu4e
 
-#+begin_src emacs-lisp :tangle no
+#+begin_src emacs-lisp
   (use-package mu4e
-    :straight ( :type git :host github :repo "djcb/mu"
-  	      :build (("./autogen.sh") ("make"))
-  	      :files (:defaults "mu4e/*.el"))
-    :custom (mu4e-mu-binary "~/.config/emacs/straight/repos/mu/build/mu/mu")
+    ;; :custom (mu4e-mu-binary "~/.config/emacs/straight/repos/mu/build/mu/mu")
+    :straight (:local-repo "/usr/share/emacs/site-lisp/mu4e"
+             :type built-in)
+    :ensure nil
+    :init
+    (my-launchers "m" 'mu4e)
+
     :config
     (defvar my-mu4e--personal-gmail-all-mail
       "/gmail/[Gmail].All Mail"
       "The endless email directory for personal gmail.")
 
-    (defvar my-mu4e--healthtensor-gmail-all-mail
-      "/healthtensor/[Gmail].All Mail"
-      "The endless email directory for HealthTensor's gmail.")
-
     (defvar my-mu4e--mailing-lists-alist
       `(((,my-mu4e--personal-gmail-all-mail . "/gmail/[Gmail].Trash")
          . ("mu-discuss@googlegroups.com"
-            "jtmoulia@alum.mit.edu"))
-        ((,my-mu4e--healthtensor-gmail-all-mail . "/healthtensor/[Gmail].Trash")
-         . ("scalar@healthtensor.com"))
-        )
+            "jtmoulia@alum.mit.edu")))
       "List of mailing list addresses and folders where their messages are saved")
 
     (setq my-mu4e--mailing-lists-alist
   	`(((,my-mu4e--personal-gmail-all-mail . "/gmail/[Gmail].Trash")
   	   . ("mu-discuss@googlegroups.com"
-                "jtmoulia@alum.mit.edu"))
-  	  ;; ((,my-mu4e--healthtensor-gmail-all-mail . "/healthtensor/[Gmail].Trash")
-  	  ;;  . ("mu-discuss@googlegroups.com"))
-  	  ))
+                "jtmoulia@alum.mit.edu"))))
 
     (defvar my-mu4e--headers-hide-all-mail
       nil
@@ -776,8 +840,6 @@ WARNING: Depends on =1password-cli= being installed.
          (mailing-list (car mailing-list))
          ((string-match "^/gmail" maildir)
   	my-mu4e--personal-gmail-all-mail)
-         ((string-match "^/healthtensor" maildir)
-  	my-mu4e--healthtensor-gmail-all-mail)
          ;; this is this function . . .
          (t mu4e-refile-folder)
          )))
@@ -789,7 +851,6 @@ WARNING: Depends on =1password-cli= being installed.
         (cond
          (mailing-list (cdr mailing-list))
          ((string-match "^/gmail" maildir) "/gmail/[Gmail].Trash")
-         ((string-match "^/healthtensor" maildir) "/healthtensor/[Gmail].Trash")
          ;; this is this function . . .
          (t mu4e-trash-folder)
          )))
@@ -802,31 +863,6 @@ WARNING: Depends on =1password-cli= being installed.
     (setq-default
      mu4e-contexts
      `(
-       ,(make-mu4e-context
-         :name "healthtensor"
-         :enter-func
-         (lambda ()
-  	 (mu4e-message
-            (concat "Switching to context: healthtensor")))
-         :match-func
-         (lambda (msg)
-  	 (when msg
-             (mu4e-message-contact-field-matches
-              msg :to "thomas@healthtensor.com")))
-         :vars '((user-mail-address . "thomas@healthtensor.com")
-                 (user-full-name . "Thomas Moulia")
-                 (mu4e-inbox-folder . "/healthtensor/INBOX")
-                 (mu4e-sent-folder . "/healthtensor/[Gmail].Sent Mail")
-                 (mu4e-drafts-folder . "/healthtensor/[Gmail].Drafts")
-                 (mu4e-trash-folder . "/healthtensor/[Gmail].Trash")
-                 ;; (mu4e-trash-folder . my-mu4e//trash-folder-function)
-                 (mu4e-refile-folder . my-mu4e//refile-folder-function)
-                 (mu4e-spam-folder . "/healthtensor/[Gmail].Spam")
-                 (smtpmail-smtp-user . "thomas@healthtensor.com")
-                 (smtpmail-default-smtp-server . "smtp.gmail.com")
-                 (smtpmail-smtp-server . "smtp.gmail.com")
-                 (smtpmail-stream-type . starttls)
-                 (smtpmail-smtp-service . 587)))
        ,(make-mu4e-context
          :name "gmail"
          :enter-func
@@ -918,9 +954,6 @@ WARNING: Depends on =1password-cli= being installed.
   ,#+begin_signature
   ---\\\\
   Thomas Moulia\\\\
-  Co-Founder & CTO | HealthTensor\\\\
-  www.healthtensor.com\\\\
-  jtmoulia.pocketknife.io\\\\
   ,#+end_signature")
 
     ;; Helper functions for composing bookmarks from contexts
@@ -995,7 +1028,7 @@ WARNING: Depends on =1password-cli= being installed.
 
     (defun my-mu4e//not-trash ()
       (my-mu4e//wrap-terms
-       '("/gmail/[Gmail].Trash" "/healthtensor/[Gmail].Trash" "/pocketknife/INBOX.Trash")
+       '("/gmail/[Gmail].Trash" "/pocketknife/INBOX.Trash")
        :prefix "NOT maildir:"))
 
     (defun my-mu4e//inboxes ()
@@ -1035,12 +1068,7 @@ WARNING: Depends on =1password-cli= being installed.
             (,(my-mu4e//bm-and "date:7d..now" (my-mu4e//sent-folders))
              "Sent mail from the last week" ?S)
             (,(my-mu4e//bm-and "flag:unread" "NOT flag:trashed" (my-mu4e//not-spam))
-             "Unread spam" ?z))
-  	)
-
-    (setq mu4e-maildir-shortcuts
-  	`((,(my-mu4e//mu4e-context-var "gmail" 'mu4e-inbox-folder) . ?g)
-            (,(my-mu4e//mu4e-context-var "healthtensor" 'mu4e-inbox-folder) . ?h)))
+             "Unread spam" ?z)))
 
     ;; Configure mu4e-alert
     ;; (setq mu4e-alert-interesting-mail-query (my-mu4e//bm-and (my-mu4e//inboxes) "flag:unread")
@@ -1066,11 +1094,15 @@ WARNING: Depends on =1password-cli= being installed.
       (unless dont-refresh
         (mu4e-headers-rerun-search)))
 
-    (defun my-mu4e-headers-hide-predicate (msg)
-      (if my-mu4e--headers-hide-all-mail
-  	(string-equal "/healthtensor/[Gmail].All Mail" (mu4e-message-field msg :maildir))))
+    (evil-set-initial-state 'mu4e-main-mode 'normal)
+    (evil-set-initial-state 'mu4e-headers-mode 'normal)
+    (evil-set-initial-state 'mu4e-view-mode 'normal)
 
-    (setq mu4e-headers-hide-predicate #'my-mu4e-headers-hide-predicate))
+    (general-nmap
+      :prefix "SPC m"
+      "m" 'mu4e
+      "s" 'mu4e-search
+      "c" 'mu4e-compose))
 #+end_src
 
 ** ChatGPT: chatgpt-shell
@@ -1098,10 +1130,16 @@ WARNING: Depends on =1password-cli= being installed.
     (setq chatgpt-shell-system-prompt
   	(cl-position "Programming" chatgpt-shell-system-prompts :key #'car :test #'equal))
 
-    (setq chatgpt-shell-openai-key (memoize (lambda () (my-1pass-get "chatgpt-shell")))))
+    ;; get the API key from 1pass
+    (setq chatgpt-shell-openai-key (memoize (lambda () (my-1pass-get "chatgpt-shell"))))
+
+    (general-nmap
+      :keymap 'chatgpt-shell-mode-map
+      :prefix ","
+      "c" 'chatgpt-shell-clear-buffer))
 #+end_src
 
-** RSS
+** RSS: elfeed
 
 =elfeed=
 
@@ -1115,6 +1153,7 @@ WARNING: Depends on =1password-cli= being installed.
     :config
     ;; automatically update the elfeed when opened
     (add-hook 'elfeed-search-mode-hook #'elfeed-update)
+    (elfeed-org)
 
     ;; (require 'elfeed-tube)
     ;; ;; load and configure elfeed-tube
