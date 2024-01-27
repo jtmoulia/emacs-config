@@ -3,20 +3,47 @@
 
 * Hogmacs Literate Config
 
-This literate config is tangled to =init.el=.
+Here's a =use-package= based literate Emacs config.
+
+** Getting Started
+*** Dependencies
+
+This configuration depends on a few packages:
+
+- ripgrep: a faster grep
+- Fira Code
+- 1password-cli: secret storage + CLI interface
+- mu: mail client and search
+
+On Arch linux they can be installed using =pikaur= (note some packages
+are in the AUR):
+
+#+begin_src sh
+  pikaur -Syu ripgrep ttf-fira-code 1password-cli mu
+#+end_src
+
+*** Config Setup
+
+This config can be tangled to =init.el= using the command
+=(org-babel-tangle)=.
 
 ** Variable Definitions
 
+Define variables specific to this configuration.
+
 #+begin_src emacs-lisp
-  ;; TODO: use an actual variable
-  (setq-default my-sync-dir (expand-file-name "~/Sync"))
+  ;; NOTE: `org/` is expected to exist under this dir.
+  (defvar my-sync-dir (expand-file-name "~/Sync")
+    "The path to my synchronized directories.")
 #+end_src
 
 ** Package Management
 
-=straight= handles package management.
+=straight= handles package management and version pinning.
 
 *** Bootstrap straight
+
+=straight= has to be bootstrapped on the initial run.
 
 #+begin_src emacs-lisp
   ;; bootstrap the pkg manager
@@ -37,7 +64,9 @@ This literate config is tangled to =init.el=.
     (load bootstrap-file nil 'nomessage))
 #+end_src
 
-*** Configure straight
+*** Configure straight + use-package
+
+=use-package= is managed by and integrated with =straight=:
 
 #+begin_src emacs-lisp
   ;; Fetch use-package from straight
@@ -45,7 +74,11 @@ This literate config is tangled to =init.el=.
   ;; Configure use-package to install pkgs using straight
   (setq straight-use-package-by-default t)
 #+end_src
+
 ** Utility Packages
+
+As Emacs improves these packages are less necessary, but they still
+provide a modern & consistent elisp interface.
 
 #+begin_src emacs-lisp
   (use-package a)
@@ -100,14 +133,14 @@ is defined, else they're stored in =~/.cache/emacs/backups=.
 
 ** Theme and Font: fira code dracula
 
-My favorite theme for a minute has been dracula.
+My favorite theme for a minute has been [[https://github.com/dracula/emacs][dracula]].
 
 #+begin_src emacs-lisp
   (use-package dracula-theme
     :config (load-theme 'dracula t))
 #+end_src
 
-Fira Code must be installed before using.
+NOTE: Fira Code must be installed before using.
 
 #+begin_src emacs-lisp
   ;; WARNING: Depends on Fira Code being installed!
@@ -187,7 +220,6 @@ Greatly increase the disk space limits granted Emacs undo history:
     :config
     (evil-set-initial-state 'info-mode 'normal))
 
-
   ;; Surround: wrap selections with delimiters
   ;; https://github.com/emacs-evil/evil-surround
   (use-package evil-surround
@@ -250,22 +282,27 @@ Greatly increase the disk space limits granted Emacs undo history:
       "f" 'eval-defun
       "s" 'eval-last-sexp)
 
+    ;; visual regions
+    (general-vmap
+      :prefix "g"
+      "c" 'comment-or-uncomment-region)
+
     ;; info-mode
-    ;; (general-nmap
-    ;;   :keymap 'Info-mode-map
-    ;;   "RET" 'Info-follow-nearest-node
-    ;;   ; "u" 'Info-up
-    ;;   "C-p" 'Info-backward-node
-    ;;   "C-n" 'Info-forward-node
-    ;;   "M-p" 'Info-history-back
-    ;;   "M-n" 'Info-history-forward)
-    )
+    (general-nmap
+      :keymaps 'Info-mode-map
+      "RET" 'Info-follow-nearest-node
+      ; "u" 'Info-up
+      "C-p" 'Info-backward-node
+      "C-n" 'Info-forward-node
+      "M-p" 'Info-history-back
+      "M-n" 'Info-history-forward))
 #+end_src
+
 ** Command pallete: ivy counsel
 
 The command pallete selector is =ivy= with =counsel= shims.
 
-=amx= provides a better extended command via most-used commands.
+=amx= provides a better extended command via most-used (MRU) commands.
 
 #+begin_src emacs-lisp
   (use-package ivy
@@ -277,23 +314,38 @@ The command pallete selector is =ivy= with =counsel= shims.
     :config
     (ivy-mode))
 
+  (defun my-run-in-evil-insert-mode (func &rest args)
+    "Run FUNC in Evil insert mode, with ARGS.
+    Toggle insert mode only if necessary and restore state afterwards."
+    (if (not (bound-and-true-p evil-local-mode))
+        (apply func args)
+        (let ((was-insert-mode (eq evil-state 'insert))
+            (buffer (current-buffer)))
+        (unless was-insert-mode
+            (evil-insert-state))
+        (unwind-protect
+            (apply func args)
+            (unless was-insert-mode
+            (with-current-buffer buffer
+                (evil-normal-state)))))))
+
   (use-package counsel
     :after (ivy)
     :config
     (counsel-mode)
     ;; eshell counsel bindings (move to emacs specific config)
     (general-nmap
-       :mode 'eshell-mode-map
+       :keymaps 'eshell-mode-map
        :prefix ","
-       "r" 'counsel-esh-history
+       "r" (lambda () (my-run-in-evil-insert-mode 'counsel-esh-history))
        ;; TODO: Need to switch to insert to clear
-       "c" 'eshell/clear))
+       "c" (lambda () (my-run-in-evil-insert-mode 'esh/clear))))
 
+  ;; AMX provides MRU command selection
   ;; https://github.com/clemera/amx
   (use-package amx
     :config
     (amx-mode))
-
 #+end_src
 
 ** Autocompletion: corfu
@@ -478,8 +530,6 @@ Define keybindings for org mode.
     (org-directory (expand-file-name "org" my-sync-dir))
     (org-agenda-files (list (expand-file-name "agenda" org-directory)))
     (org-agenda-skip-deadline-prewarning-if-scheduled t)
-    (org-src-preserve-indentation nil)
-    (org-edit-src-content-indentation nil)
     (org-todo-keywords
      '((sequence
         "TODO(t)"  ; A task that needs doing & is ready to do
@@ -608,7 +658,7 @@ Custom agendas are managed using =org-super-agenda=.
     ;; TODO: refactor paths to var
     (deft-directory (expand-file-name "~/Sync/org/notes"))
     :config
-    (general-nmap :keymap 'deft-mode "q" 'kill-this-buffer))
+    (general-nmap :keymaps 'deft-mode "q" 'kill-this-buffer))
 #+end_src
 
 **** Hugo blogging
@@ -628,7 +678,7 @@ Custom agendas are managed using =org-super-agenda=.
 Note: I don't currently use org-ql, or, more to the point, know how to
 use it.
 
-#+begin_src emacs-lisp
+#+begin_src emacs-lisp :tangle no
   (use-package org-ql)
 #+end_src
 
@@ -762,8 +812,22 @@ WARNING: Depends on =1password-cli= being installed.
 
 ** Python: LSP & eglot & pyright
 
-Configure eglot with a list of Python alternatives -- typically
-running pyright behind poetry is the way to go.
+Use the souped up ipython as the Python interpreter.
+
+#+begin_src emacs-lisp
+  (when (executable-find "ipython")
+    (setq python-shell-interpreter "ipython"))
+
+  (defun +python/open-ipython-poetry-repl ()
+    "Open an IPython REPL using poetry."
+    (interactive)
+    (let ((python-shell-interpreter "poetry")
+          (python-shell-interpreter-args "run ipython -i"))
+      (run-python)))
+#+end_src
+
+Configure =eglot= with a list of Python alternatives -- for my
+workflows, running pyright behind poetry is typically the way to go.
 
 #+begin_src emacs-lisp
   (with-eval-after-load 'eglot
@@ -1107,6 +1171,8 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
 
 ** ChatGPT: chatgpt-shell
 
+=(chatgpt-shell)= provides a shell like interface to ChatGPT.
+
 #+begin_src emacs-lisp
   (use-package chatgpt-shell
     :commands (chatgpt-shell)
@@ -1134,14 +1200,14 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
     (setq chatgpt-shell-openai-key (memoize (lambda () (my-1pass-get "chatgpt-shell"))))
 
     (general-nmap
-      :keymap 'chatgpt-shell-mode-map
+      :keymaps 'chatgpt-shell-mode-map
       :prefix ","
       "c" 'chatgpt-shell-clear-buffer))
 #+end_src
 
 ** RSS: elfeed
 
-=elfeed=
+Configuration for the =(elfeed)= RSS reader.
 
 #+begin_src emacs-lisp
   (use-package elfeed
@@ -1153,7 +1219,6 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
     :config
     ;; automatically update the elfeed when opened
     (add-hook 'elfeed-search-mode-hook #'elfeed-update)
-    (elfeed-org)
 
     ;; (require 'elfeed-tube)
     ;; ;; load and configure elfeed-tube
@@ -1176,15 +1241,16 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
     (rmh-elfeed-org-files (list
   			 (expand-file-name "elfeed.org" org-directory)))
     :config
+    (elfeed-org)
     (general-nmap
-      :keymap 'elfeed-search-mode-map
+      :keymaps 'elfeed-search-mode-map
       "q" #'elfeed-kill-buffer
       "RET" #'elfeed-search-show-entry))
 #+end_src
 
 ** Mastodon
 
-TOOT TOOT! =mastodon=
+TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
 
 #+BEGIN_SRC emacs-lisp
   (use-package mastodon
@@ -1192,9 +1258,23 @@ TOOT TOOT! =mastodon=
     :init (my-launchers "M" 'mastodon)
     :custom
     (mastodon-active-user "jtmoulia")
-    (mastodon-instance-url "https://mstdn.social"))
+    (mastodon-instance-url "https://mstdn.social")
+
+    :config
+    (general-nmap
+      :keymaps 'mastodon-mode-map
+      "C-n" 'mastodon-tl--goto-next-item
+      "C-p" 'mastodon-tl--goto-prev-item)
+
+    (general-nmap
+      :keymaps 'mastodon-mode-map
+      :prefix ","
+      "t b" 'mastodon-toot--toggle-boost
+      "t f" 'mastodon-toot--toggle-favourite
+      "t B" 'mastodon-toot--toggle-bookmark))
 #+END_SRC
 
 * Tasks
-
-** TODO Add bindings for yas edit, e.g. ", e e" to commit (or ", c c?")
+** TODO Flyspell mode
+** TODO org evil bindings for indentation
+** TODO Keybinding scheme documentation
