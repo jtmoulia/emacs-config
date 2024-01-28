@@ -218,7 +218,7 @@ Greatly increase the disk space limits granted Emacs undo history:
   			     :host github
   			     :repo "emacs-evil/evil-collection")
     :config
-    (evil-set-initial-state 'info-mode 'normal))
+    (evil-set-initial-state 'Info-mode 'normal))
 
   ;; Surround: wrap selections with delimiters
   ;; https://github.com/emacs-evil/evil-surround
@@ -263,7 +263,6 @@ Greatly increase the disk space limits granted Emacs undo history:
     (general-nmap
       :prefix "SPC f"
       "f" 'find-file
-      ;; SPC-f-r: open recent files
       "r" 'recentf-open
       "s" 'save-buffer
       "d" 'delete-file)
@@ -291,7 +290,7 @@ Greatly increase the disk space limits granted Emacs undo history:
     (general-nmap
       :keymaps 'Info-mode-map
       "RET" 'Info-follow-nearest-node
-      ; "u" 'Info-up
+      "u" 'Info-up
       "C-p" 'Info-backward-node
       "C-n" 'Info-forward-node
       "M-p" 'Info-history-back
@@ -1166,7 +1165,19 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
       :prefix "SPC m"
       "m" 'mu4e
       "s" 'mu4e-search
-      "c" 'mu4e-compose))
+      "c" 'mu4e-compose-new
+      "b" 'mu4e-search-bookmark)
+
+    (general-nmap
+      :keymaps 'mu4e-main-mode-map
+      "b" 'mu4e-search-bookmark
+      "q" 'mu4e-quit
+      "c" 'mu4e-compose-new
+      "s" 'mu4e-search)
+
+    (general-nmap
+      :keymaps 'mu4e-headers-mode-map
+      "q" 'mu4e-headers-quit-buffer))
 #+end_src
 
 ** ChatGPT: chatgpt-shell
@@ -1209,6 +1220,9 @@ Using =jrblevin/markdown-mode= to handle markdown documents.
 
 Configuration for the =(elfeed)= RSS reader.
 
+The list of feeds is defined in =Sync/org/elfeed.org= (as supported by
+=(elfeed-org)=).
+
 #+begin_src emacs-lisp
   (use-package elfeed
     :custom
@@ -1227,6 +1241,18 @@ Configuration for the =(elfeed)= RSS reader.
     ;; (define-key elfeed-show-mode-map [remap save-buffer] 'elfeed-tube-save)
     ;; (define-key elfeed-search-mode-map (kbd "F") 'elfeed-tube-fetch)
     ;; (define-key elfeed-search-mode-map [remap save-buffer] 'elfeed-tube-save)
+    (general-nmap
+      :keymaps 'elfeed-search-mode-map
+      "RET" 'elfeed-search-show-entry
+      "q" 'elfeed-search-quit-window
+      "s" 'elfeed-search-live-filter)
+
+    (general-nmap
+      :keymaps 'elfeed-show-mode-map
+      "q" 'elfeed-search-quit-window
+      "C-n" 'elfeed-show-next
+      "C-p" 'elfeed-show-prev)
+
     (my-launchers "r" #'elfeed))
 #+end_src
 
@@ -1242,10 +1268,9 @@ Configuration for the =(elfeed)= RSS reader.
   			 (expand-file-name "elfeed.org" org-directory)))
     :config
     (elfeed-org)
-    (general-nmap
-      :keymaps 'elfeed-search-mode-map
-      "q" #'elfeed-kill-buffer
-      "RET" #'elfeed-search-show-entry))
+
+
+    )
 #+end_src
 
 ** Mastodon
@@ -1278,3 +1303,6 @@ TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
 ** TODO Flyspell mode
 ** TODO org evil bindings for indentation
 ** TODO Keybinding scheme documentation
+** TODO Setup elfeed-tube for handling youtube feeds
+** TODO Switch to evil-leader rather than hard-coded =,= / =SPC=
+** TODO Set up evil-easy motion
