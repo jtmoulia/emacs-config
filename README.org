@@ -8,24 +8,57 @@ Here's a =use-package= based literate Emacs config.
 ** Getting Started
 *** Dependencies
 
-This configuration depends on a few packages:
+This configuration orchestrates some external packages:
 
-- ripgrep: a faster grep
-- Fira Code
-- 1password-cli: secret storage + CLI interface
-- mu: mail client and search
+- General
+  - ripgrep: a faster grep
+  - Fira Code
+  - 1password-cli: secret storage + CLI interface
+  - mu: mail client and search
+- Python
+  - pyright: Python LSP server
+  - jupyter: persistent Python runtime
 
 On Arch linux they can be installed using =pikaur= (note some packages
 are in the AUR):
 
 #+begin_src sh
-  pikaur -Syu ripgrep ttf-fira-code 1password-cli mu
+  pikaur -Syu ripgrep ttf-fira-code 1password-cli mu python-pyright jupyter-console
 #+end_src
 
 *** Config Setup
 
 This config can be tangled to =init.el= using the command
 =(org-babel-tangle)=.
+
+** Conventions
+
+*** TODO Keybindings
+
+Evil leader is used for global and local leader keys:
+
+| Key   | Type   |
+|-------+--------|
+| =SPC= | global |
+| =,=   | local  |
+
+Vim-like evil keybindings are somewhat consistent across modes:
+
+| Key | Action |
+|-----+--------|
+| =q= | quit   |
+| =t= | toggle |
+| =z= | fold   |
+
+
+*** Config Specific Vars and Defuns
+
+In the elisp tradition, a naming prefix (=my=) is used to signify
+which variables and functions belong specifically to my config.
+
+- =my//variable= an internal variable (TODO: drop)
+- =my/variable= an external variable
+- =my-defun= a function defined as part of the config
 
 ** Variable Definitions
 
@@ -112,10 +145,13 @@ bars.
     (tool-bar-mode -1))
 
   ;; don't use tab characters
-  (setq-default indent-tabs-mode nil)
+  (setq indent-tabs-mode nil)
 
   ;; delete trailing whitespace on save
   (add-hook 'write-file-hooks 'delete-trailing-whitespace)
+
+  ;; use single character y-or-n-p for confirmation
+  (setopt use-short-answers t)
 #+end_src
 
 ** Backup Files
@@ -594,6 +630,12 @@ Define keybindings for org mode.
         (when (eq (car object) 'link)
   	(eww (org-element-property :raw-link object)))))
 
+    ;; org-babel config
+    (org-babel-do-load-languages
+     'org-babel-load-languages
+     '((ipython . t)
+       (python . t)))
+
     (my-setup-org-keybindings))
 #+end_src
 
@@ -841,6 +883,13 @@ Use =emacs-python-pytest= to run pytest from Emacs:
   (use-package python-pytest
     :custom
     (python-pytest-executable "poetry run pytest"))
+#+end_src
+
+Use =ob-ipython= for running org babel blocks in Python (GitHub source
+for [[https://github.com/gregsexton/ob-ipython][gregsexton/ob-ipython]]):
+
+#+begin_src emacs-lisp
+  (use-package ob-ipython)
 #+end_src
 
 ** Markdown: markdown-mode
@@ -1289,8 +1338,11 @@ TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
     (general-nmap
       :keymaps 'mastodon-mode-map
       "C-n" 'mastodon-tl--goto-next-item
-      "C-p" 'mastodon-tl--goto-prev-item)
+      "C-p" 'mastodon-tl--goto-prev-item
+      "q" 'mastodon-kill-all-buffers
+      "g u" 'mastodon-tl--update)
 
+    ;; Note: this is a lot of keystrokes for common actions
     (general-nmap
       :keymaps 'mastodon-mode-map
       :prefix ","
@@ -1302,7 +1354,6 @@ TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
 * Tasks
 ** TODO Flyspell mode
 ** TODO org evil bindings for indentation
-** TODO Keybinding scheme documentation
 ** TODO Setup elfeed-tube for handling youtube feeds
 ** TODO Switch to evil-leader rather than hard-coded =,= / =SPC=
 ** TODO Set up evil-easy motion
