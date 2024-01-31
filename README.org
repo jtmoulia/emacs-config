@@ -383,6 +383,26 @@ The command pallete selector is =ivy= with =counsel= shims.
     (amx-mode))
 #+end_src
 
+** Spell checking: flyspell
+
+#+begin_src emacs-lisp :tangle yes
+  (defun my-flyspell-save-word ()
+    "Save the cursor's word into the spell dictionary."
+    (interactive)
+    (let ((current-location (point))
+          (word (flyspell-get-word)))
+      (when (consp word)
+        (flyspell-do-correct
+         'save nil (car word) current-location
+         (cadr word) (caddr word) current-location))))
+
+  (general-nmap
+    :prefix "z"
+    "S" 'my-flyspell-save-word
+    "f" 'flyspell-correct-word-before-point
+    "n" 'flyspell-goto-next-error)
+#+end_src
+
 ** Autocompletion: corfu
 
 #+begin_src emacs-lisp
@@ -484,8 +504,14 @@ Define keybindings for org mode.
       :keymaps 'org-mode-map
       ;; keep default TAB behavior, even in normal mode
       "TAB" 'org-cycle
+      "< <" 'org-shiftmetaleft
       "> >" 'org-shiftmetaright
-      "< <" 'org-shiftmetaleft)
+      "C-S-l" 'org-shiftmetaleft
+      "C-S-h" 'org-shiftmetaright
+      "S-l" 'org-shiftleft
+      "S-h" 'org-shiftright
+      "C-h" 'org-metaleft
+      "C-l" 'org-metaright)
 
     ;; org mode leader bindings
     (general-nmap
@@ -560,8 +586,9 @@ Define keybindings for org mode.
 
 #+begin_src emacs-lisp
   (use-package org
-    :hook ((org-mode . auto-fill-mode)
-  	 (org-mode . org-indent-mode))
+    :hook ((org-mode . org-indent-mode)
+  	 (org-mode . auto-fill-mode)
+  	 (org-mode . flyspell-mode))
 
     :custom
     (org-directory (expand-file-name "org" my-sync-dir))
@@ -749,6 +776,7 @@ out of hand.
             "\\*Backtrace\\*"
             "\\*Org Select\\*"
             "\\*ielm\\*"
+            "\\*Python\\*"
             calendar-mode
             help-mode
             compilation-mode))
@@ -857,14 +885,19 @@ WARNING: Depends on =1password-cli= being installed.
 Use the souped up ipython as the Python interpreter.
 
 #+begin_src emacs-lisp
-  (when (executable-find "ipython")
-    (setq python-shell-interpreter "ipython"))
+  ;; Silence the noise of indentation warnings
+  (setq python-indent-guess-indent-offset-verbose nil)
 
-  (defun +python/open-ipython-poetry-repl ()
+  (when (executable-find "ipython")
+    (setq python-shell-interpreter "ipython")
+    (setq python-shell-interpreter-args
+  	"-i --simple-prompt --InteractiveShell.display_page=True"))
+
+  (defun my-open-ipython-poetry-repl ()
     "Open an IPython REPL using poetry."
     (interactive)
     (let ((python-shell-interpreter "poetry")
-          (python-shell-interpreter-args "run ipython -i"))
+          (python-shell-interpreter-args "run ipython -i --simple-prompt"))
       (run-python)))
 #+end_src
 
@@ -1289,6 +1322,7 @@ The list of feeds is defined in =Sync/org/elfeed.org= (as supported by
     ;; (define-key elfeed-show-mode-map [remap save-buffer] 'elfeed-tube-save)
     ;; (define-key elfeed-search-mode-map (kbd "F") 'elfeed-tube-fetch)
     ;; (define-key elfeed-search-mode-map [remap save-buffer] 'elfeed-tube-save)
+
     (general-nmap
       :keymaps 'elfeed-search-mode-map
       "RET" 'elfeed-search-show-entry
@@ -1351,7 +1385,7 @@ TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
 #+END_SRC
 
 * Tasks
-** TODO Flyspell mode
+** TODO Fill in avy-window bindings
 ** TODO Setup elfeed-tube for handling youtube feeds
 ** TODO Switch to evil-leader rather than hard-coded =,= / =SPC=
 ** TODO Set up evil-easy motion
