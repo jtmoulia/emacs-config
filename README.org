@@ -483,73 +483,75 @@ Define keybindings for org mode.
     (general-nmap
       :keymaps 'org-mode-map
       ;; keep default TAB behavior, even in normal mode
-      "TAB" #'org-cycle)
+      "TAB" 'org-cycle
+      "> >" 'org-shiftmetaright
+      "< <" 'org-shiftmetaleft)
 
     ;; org mode leader bindings
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ","
-      "A" #'org-archive-subtree
-      "C" #'org-ctrl-c-ctrl-c)
+      "A" 'org-archive-subtree
+      "C" 'org-ctrl-c-ctrl-c)
 
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", c"
-      "c" #'org-ctrl-c-ctrl-c)
+      "c" 'org-ctrl-c-ctrl-c)
 
     ;; org source block bindings
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", e"
-      "e" #'org-edit-special
-      "t" #'org-babel-tangle
+      "e" 'org-edit-special
+      "t" 'org-babel-tangle
       ;; org export (ox) keybindings
-      "E" #'org-export-dispatch)
+      "E" 'org-export-dispatch)
 
     ;; org edit soure mode bindings
     (general-nmap
       :keymaps 'org-src-mode-map
       :prefix ", e"
-      "e" #'org-edit-src-exit
-      "k" #'org-edit-src-abort)
+      "e" 'org-edit-src-exit
+      "k" 'org-edit-src-abort)
 
     ;; org scheduling keybindings
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", d"
-      "s" #'org-schedule)
+      "s" 'org-schedule)
 
     ;; org todo keybindings
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", t"
-      "t" #'org-todo)
+      "t" 'org-todo)
 
     ;; org todo keybindings
     (general-nmap
       :keymaps 'org-mode-map
       :prefix ", h"
-      "s" #'counsel-org-goto
-      "<" #'org-promote-subtree
-      ">" #'org-demote-subtree)
+      "s" 'counsel-org-goto
+      "<" 'org-promote-subtree
+      ">" 'org-demote-subtree)
 
     ;; org-agenda keybindings
     (general-nmap
       :keymaps 'org-agenda-mode-map
-      "q" #'org-agenda-exit
-      "j" #'org-agenda-next-line
-      "k" #'org-agenda-previous-line
-      "g j" #'org-agenda-next-item
-      "g k" #'org-agenda-previous-item
-      "g H" #'evil-window-top
-      "g M" #'evil-window-middle
-      "g L" #'evil-window-bottom)
+      "q" 'org-agenda-exit
+      "j" 'org-agenda-next-line
+      "k" 'org-agenda-previous-line
+      "g j" 'org-agenda-next-item
+      "g k" 'org-agenda-previous-item
+      "g H" 'evil-window-top
+      "g M" 'evil-window-middle
+      "g L" 'evil-window-bottom)
 
     (general-nmap
       :keymaps 'org-agenda-mode-map
       :prefix ","
-      "d t" #'org-agenda-schedule
-      "t t" #'org-agenda-todo)
+      "d t" 'org-agenda-schedule
+      "t t" 'org-agenda-todo)
 
     (my-launchers "a" 'org-agenda-execute))
 #+end_src
@@ -633,8 +635,7 @@ Define keybindings for org mode.
     ;; org-babel config
     (org-babel-do-load-languages
      'org-babel-load-languages
-     '((ipython . t)
-       (python . t)))
+     '((python . t)))
 
     (my-setup-org-keybindings))
 #+end_src
@@ -798,8 +799,8 @@ out of hand.
 
 *** Cursor: beacon
 
-=beacon= flashes up a colorful splash of color whenever the cursor
-jumps so I don't lose it.
+=beacon= flashes up a splash of color whenever the cursor jumps so I
+don't lose it.
 
 This is especially useful when jumping to a buffer without selecting a
 location, or when the buffer scroll jumps.
@@ -885,11 +886,9 @@ Use =emacs-python-pytest= to run pytest from Emacs:
     (python-pytest-executable "poetry run pytest"))
 #+end_src
 
-Use =ob-ipython= for running org babel blocks in Python (GitHub source
-for [[https://github.com/gregsexton/ob-ipython][gregsexton/ob-ipython]]):
-
 #+begin_src emacs-lisp
-  (use-package ob-ipython)
+  (use-package jupyter
+    :straight (:build (:not native-compile)))
 #+end_src
 
 ** Markdown: markdown-mode
@@ -1353,7 +1352,6 @@ TOOT TOOT! Configuration for the ActivityPub =(mastodon)= network.
 
 * Tasks
 ** TODO Flyspell mode
-** TODO org evil bindings for indentation
 ** TODO Setup elfeed-tube for handling youtube feeds
 ** TODO Switch to evil-leader rather than hard-coded =,= / =SPC=
 ** TODO Set up evil-easy motion
